@@ -140,3 +140,5 @@ object SinaWapNginxBeLog {
     actionByDirect(Array("10.71.216.62:9092,10.71.216.40:9092,10.71.216.47:9092,10.71.216.228:9092,10.71.216.229:9092", "sinawap-nginx-belog"))
   }
 }
+//spark-submit --master spark://10.211.103.201:7077 --executor-memory 4G --total-executor-cores 10 cms_front_nginx-1.0-SNAPSHOT.jar
+//spark-submit --master spark://10.211.103.201:7077 --deploy-mode cluster --supervise --executor-memory 4G --total-executor-cores 10 http://.../cms_front_nginx-1.0-SNAPSHOT.jar
