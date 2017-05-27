@@ -101,13 +101,13 @@ object SinaWapNginxBeLog {
     val conf = new SparkConf()
     conf.setAppName("sinawap_nginx_belog_log_compute")
     conf.set("es.nodes", "10.211.103.202,10.211.103.212,10.211.103.222")
-    //conf.setMaster("local[4]")
+    conf.setMaster("local[4]")
     //conf.setMaster("spark://10.211.103.201:7077")
     //conf.setJars(List("D:\\Clouds\\Baidu\\工作\\新浪\\Projects\\IDEA\\sina\\sina-logging\\wap-logging\\sinawap_nginx_belog\\target\\original-sinawap_nginx_belog-1.0-SNAPSHOT.jar"))
     //conf.setJars(List("/Volumes/Data/Projects/IDEA/sina/logging/cms_front_nginx/target/artifacts/CMSFrontNginx.jar"))
     //conf.set("spark.executor.memory", "2g")
     //conf.set("spark.executor.cores", "4")
-    val ssc = new StreamingContext(conf, Seconds(5))
+    val ssc = new StreamingContext(conf, Seconds(1))
 
 
     //3、从kafka获取数据
@@ -119,16 +119,18 @@ object SinaWapNginxBeLog {
       )
     val records = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet)
 
+    records.count().print()
+    //cleanRecords(records).print()
     //4、执行计算
 
     //al result1 = computeStatusCount(cleanRecords(records))
-    val result2 = computeRequestTime(cleanRecords(records))
+    //val result2 = computeRequestTime(cleanRecords(records))
 
     //5、保存结果
 
     //result1.saveToEs("spark_cms_front_nginx_status-{esIndex}/logs")
-    //result2.saveToEs("spark_cms_front_nginx_request-{esIndex}/logs")
-    result2.print()
+    //result2.saveToEs("spark_wap_front_nginx_request-{esIndex}/logs")
+    //result2.print()
 
 
     ssc.start()
