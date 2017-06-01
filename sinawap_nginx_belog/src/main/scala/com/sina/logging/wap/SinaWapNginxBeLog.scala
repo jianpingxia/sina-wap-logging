@@ -114,12 +114,12 @@ object SinaWapNginxBeLog {
         "metadata.broker.list" -> brokers,
         "group.id" -> "spark_receiver_cms_front_nginx"
       )
-    val records = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet).window(Seconds(30), Seconds(1))
+    val records = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet)//.window(Seconds(30), Seconds(1))
 
     //4、执行计算
 
     val result1 = cleanRecords(records)
-    result1.map(t => (t._1,1L)).reduceByKey(_+_).print(1000)
+    result1.map(t => (t._1,t._3,t._2)).countByValue().print(1000)
 
     //result3.print()
     //val result1 = computeStatusCount(cleanRecords(records))
