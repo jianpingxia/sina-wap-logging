@@ -1,7 +1,7 @@
 package com.sina.logging.wap
 
 import java.text.SimpleDateFormat
-import java.util.{Date, Locale}
+import java.util.{Calendar, Date, Locale}
 
 import kafka.serializer.StringDecoder
 import org.apache.spark.{SparkConf, SparkContext}
@@ -13,62 +13,59 @@ import org.apache.spark.streaming.kafka.KafkaUtils
   * Created by jianping on 2017/5/23.
   */
 object SinaWapNginxBeLog {
-  def cleanRecords(records:InputDStream[(String,String)]):DStream[(Date,Int,String,Double,String,String)]={
+
+
+  def cleanRecords(records: DStream[(String, String)]): DStream[(Date, Int, String, Double, String)] = {
     records
-      .map(line =>
-      {
+      .map(line => {
         val parts1 = line._2.split("`")
         val parts2 = line._2.split("\\|")
 
         var status: Int = 1000
         var requestTime: Double = 0.0
         var timestamp: Date = new Date()
-        var idc:String = ""
-        var apiDomain =""
-        var apiName= ""
+        var idc: String = ""
+        var apiDomain = ""
         try {
           val timestamptmp = parts1(0).split("\\[")
-          timestamp = new SimpleDateFormat("dd/MMM/yyyy:HH:mm:ss Z", Locale.ENGLISH).parse(timestamptmp(2).substring(0, timestamptmp(2).indexOf("]")))
+          timestamp = new SimpleDateFormat("dd/MMM/yyyy:HH:mm:ss Z", Locale.ENGLISH).parse(timestamptmp(1).substring(0, timestamptmp(1).indexOf("]")))
           status = parts1(4).toInt
           requestTime = parts1(8).toDouble
           val backDomain = parts2(parts2.length - 2).split('.')
-          idc = backDomain(backDomain.length-3)
-          apiName = parts1(2).split(" ")(1).split("\\?")(0)
+          idc = backDomain(backDomain.length - 3)
           apiDomain = parts1(12)
         } catch {
-          case ex:Exception => /*println(line._2)*/
+          case ex: Exception => ex.printStackTrace();println(line)
         }
-        (timestamp,status,idc,requestTime,apiDomain,apiName)
+        (timestamp, status, idc, requestTime, apiDomain)
       }
       )
   }
 
-  def computeRequestTime(records:DStream[(Date,Int,String,Double,String,String)]):DStream[Map[String,Any]]={
+  def computeRequestTime(records: DStream[(Date, Int, String, Double, String, String)]): DStream[Map[String, Any]] = {
     records
-      .map(t=>((t._2,t._3),t._4))
+      .map(t => ((t._2, t._3), t._4))
       .groupByKey()
-      .map(t =>
-      {
+      .map(t => {
         val dateFormat = new SimpleDateFormat("dd/MMM/yyyy:HH:mm:ss Z", Locale.ENGLISH)
-        val timestamp =dateFormat.parse(dateFormat.format(new Date()))
+        val timestamp = dateFormat.parse(dateFormat.format(new Date()))
 
         Map(
           "@timestamp" -> timestamp,
           "status" -> t._1._1,
           "idc" -> t._1._2,
-          "request" -> t._2.reduce(_+_)/t._2.toList.length,
+          "request" -> t._2.reduce(_ + _) / t._2.toList.length,
           "esIndex" -> new SimpleDateFormat("YYYY.MM.dd").format(timestamp)
         )
       }
       )
   }
 
-  def computeStatusCount(records:DStream[(Date,Int,String,Double,String,String)]):DStream[Map[String,Any]]={
+  def computeStatusCount(records: DStream[(Date, Int, String, Double, String, String)]): DStream[Map[String, Any]] = {
     records
-      .map(t=>((t._1,t._2,t._3,t._5,t._6),t._4))
+      .map(t => ((t._1, t._2, t._3, t._5, t._6), t._4))
       .groupByKey()
-      .map(t =>
-      {
+      .map(t => {
         Map(
           "@timestamp" -> t._1._1,
           "status" -> t._1._2,
@@ -108,22 +105,24 @@ object SinaWapNginxBeLog {
     //conf.set("spark.executor.memory", "2g")
     //conf.set("spark.executor.cores", "4")
     val ssc = new StreamingContext(conf, Seconds(1))
-
+    //ssc.checkpoint("D:\\checkpoint")
 
     //3、从kafka获取数据
     val topicsSet = topics.split(",").toSet
     val kafkaParams: Map[String, String] =
       Map[String, String](
         "metadata.broker.list" -> brokers,
-        "group.id" -> "spark_receiver_cms_front_nginx_test"
+        "group.id" -> "spark_receiver_cms_front_nginx"
       )
-    val records = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet)
+    val records = KafkaUtils.createDirectStream[String, String, StringDecoder, StringDecoder](ssc, kafkaParams, topicsSet).window(Seconds(30), Seconds(1))
 
-    records.count().print()
-    //cleanRecords(records).print()
     //4、执行计算
 
-    //al result1 = computeStatusCount(cleanRecords(records))
+    val result1 = cleanRecords(records)
+    result1.map(t => (t._1,1L)).reduceByKey(_+_).print(1000)
+
+    //result3.print()
+    //val result1 = computeStatusCount(cleanRecords(records))
     //val result2 = computeRequestTime(cleanRecords(records))
 
     //5、保存结果
@@ -136,9 +135,11 @@ object SinaWapNginxBeLog {
     ssc.start()
     ssc.awaitTermination()
   }
+
   def main(args: Array[String]): Unit = {
     actionByDirect(Array("10.71.216.62:9092,10.71.216.40:9092,10.71.216.47:9092,10.71.216.228:9092,10.71.216.229:9092", "sinawap-nginx-belog"))
   }
 }
+
 //spark-submit --master spark://10.211.103.201:7077 --executor-memory 4G --total-executor-cores 10 cms_front_nginx-1.0-SNAPSHOT.jar
 //spark-submit --master spark://10.211.103.201:7077 --deploy-mode cluster --supervise --executor-memory 4G --total-executor-cores 10 http://.../cms_front_nginx-1.0-SNAPSHOT.jar
